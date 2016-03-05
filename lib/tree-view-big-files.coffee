@@ -13,17 +13,20 @@ getEntrySizeDataAttr = (el) ->
 setEntrySizeDataAttr = (el, bytes) ->
   el.setAttribute 'data-size-bytes', bytes
 
-appendEntryWithFilesize = (el, bytes) ->
+addSuffixToFilename = (el, suffix) ->
   spans = el.getElementsByClassName 'tree-view-big-files-size'
   if not spans.length
     span = document.createElement('span');
     span.className = 'tree-view-big-files-size'
-    span.textContent  = getHumanSizeFromBytes bytes
+    span.textContent  = suffix
     el.appendChild span
   else
-    spans[0].textContent = getHumanSizeFromBytes bytes
+    spans[0].textContent = suffix
 
-filesizeThreshold = null
+modifiyFilenameSuffix = (el, suffix) ->
+  spans = el.getElementsByClassName 'tree-view-big-files-size'
+  if spans.length then spans[0].textContent = suffix
+
 module.exports = TreeViewBigFiles =
   config:
     filesizeThreshold:
@@ -41,7 +44,9 @@ module.exports = TreeViewBigFiles =
       treeView = @treeView
       @subscriptions.add atom.workspace.observeTextEditors (editor) =>
         @subscriptions.add editor.onDidSave ->
-          setEntrySizeDataAttr treeView.entryForPath(editor.getPath()), ''
+          entry = treeView.entryForPath(editor.getPath())
+          setEntrySizeDataAttr entry, ''
+          modifiyFilenameSuffix entry, ''
       atom.config.observe 'tree-view-big-files', (value) ->
         treeView.filesizeThreshold = value.filesizeThreshold
 
@@ -56,7 +61,7 @@ module.exports = TreeViewBigFiles =
             fsStat entry.getPath(), (err, stat) =>
               setEntrySizeDataAttr entry, stat.size
               if stat.size < @filesizeThreshold then @originalEntryClicked(e)
-              else appendEntryWithFilesize entry, stat.size
+              else addSuffixToFilename entry, getHumanSizeFromBytes(stat.size)
           false
         else
           @originalEntryClicked(e)
