@@ -1,7 +1,7 @@
 {
   "name": "tree-view-big-files",
   "main": "./lib/tree-view-big-files",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Opens files bigger than threshold with double click in tree view",
   "keywords": [
     "tree-view",
