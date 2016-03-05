@@ -45,6 +45,7 @@ module.exports = TreeViewBigFiles =
       @subscriptions.add atom.workspace.observeTextEditors (editor) =>
         @subscriptions.add editor.onDidSave ->
           entry = treeView.entryForPath(editor.getPath())
+          if not entry then return
           setEntrySizeDataAttr entry, ''
           modifiyFilenameSuffix entry, ''
       atom.config.observe 'tree-view-big-files', (value) ->
