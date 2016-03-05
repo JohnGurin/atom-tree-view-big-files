@@ -1,13 +1,14 @@
 {
   "name": "tree-view-big-files",
   "main": "./lib/tree-view-big-files",
-  "version": "0.1.0",
-  "description": "Opens big files with double click in tree view",
+  "version": "0.1.1",
+  "description": "Opens files bigger than threshold with double click in tree view",
   "keywords": [
     "tree-view",
     "click",
     "big",
-    "file"
+    "file",
+    "threshold"
   ],
   "repository": "https://github.com/JohnGurin/atom-tree-view-big-files",
   "license": "MIT",
