@@ -2,7 +2,6 @@ fsStat = require('fs').stat
 {CompositeDisposable} = require 'atom'
 
 getHumanSizeFromBytes = (bytes) ->
-  if bytes < 1024 then return ' ' + bytes + ' Bytes'
   if bytes < 1048576 then return ' ' + (bytes/1024).toFixed(1) + ' KB'
   if bytes < 1073741824 then return ' ' + (bytes/1048576).toFixed(1) + ' MB'
   ' ' + (bytes/1073741824).toFixed(1) + ' GB'
@@ -32,40 +31,37 @@ module.exports = TreeViewBigFiles =
     filesizeThreshold:
       title: 'File size threshold (bytes)'
       type: 'integer'
-      default: 204800
+      default: 102400
       minimum: 0
 
   activate: ->
-    @subscriptions = new CompositeDisposable
-
     atom.packages.activatePackage('tree-view').then (treeViewPkg) =>
       @treeView = treeViewPkg.mainModule.createView()
       @treeView.originalEntryClicked = @treeView.entryClicked
-      treeView = @treeView
+      @subscriptions = new CompositeDisposable
       @subscriptions.add atom.workspace.observeTextEditors (editor) =>
-        @subscriptions.add editor.onDidSave ->
-          entry = treeView.entryForPath(editor.getPath())
+        @subscriptions.add editor.onDidSave =>
+          entry = @treeView.entryForPath(editor.getPath())
           if not entry then return
           setEntrySizeDataAttr entry, ''
           modifiyFilenameSuffix entry, ''
-      atom.config.observe 'tree-view-big-files', (value) ->
-        treeView.filesizeThreshold = value.filesizeThreshold
+      atom.config.observe 'tree-view-big-files', (value) =>
+        @treeView.filesizeThreshold = value.filesizeThreshold
 
       @treeView.entryClicked = (e) ->
         entry = e.currentTarget
-        if entry.constructor.name == 'tree-view-file'
-          size = getEntrySizeDataAttr entry
-          if size
-            if size < @filesizeThreshold then @originalEntryClicked(e)
-          else
-            setEntrySizeDataAttr entry, 0
-            fsStat entry.getPath(), (err, stat) =>
-              setEntrySizeDataAttr entry, stat.size
-              if stat.size < @filesizeThreshold then @originalEntryClicked(e)
-              else addSuffixToFilename entry, getHumanSizeFromBytes(stat.size)
-          false
+        if entry.constructor.name == 'tree-view-directory'
+          return @originalEntryClicked(e)
+        size = getEntrySizeDataAttr entry
+        if size
+          if size < @filesizeThreshold then @originalEntryClicked(e)
         else
-          @originalEntryClicked(e)
+          setEntrySizeDataAttr entry, 0
+          fsStat entry.getPath(), (err, stat) =>
+            setEntrySizeDataAttr entry, stat.size
+            if stat.size < @filesizeThreshold then @originalEntryClicked(e)
+            else addSuffixToFilename entry, getHumanSizeFromBytes(stat.size)
+        false
 
       @treeView.on 'dblclick', '.entry', (e) =>
         @treeView.openSelectedEntry.call @treeView
