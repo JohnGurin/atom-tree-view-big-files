@@ -54,7 +54,7 @@ module.exports = TreeViewBigFiles =
 
       @treeView.entryClicked = (e) =>
         if isFileOpened @treeView.selectedPath then return @openSelectedEntryOriginal.call @treeView
-        if getEntrySizeDataAttr(e.currentTarget)||0 >= @filesizeThreshold then return false
+        if getEntrySizeDataAttr(e.currentTarget) >= @filesizeThreshold then return false
         @entryClickedOriginal.call @treeView, e
 
       @treeView.openSelectedEntry = (options={}, expandDirectory=false) =>
