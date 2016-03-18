@@ -26,6 +26,9 @@ modifiyFilenameSuffix = (el, suffix) ->
   spans = el.getElementsByClassName 'tree-view-big-files-size'
   if spans.length then spans[0].textContent = suffix
 
+isFileOpened = (path) ->
+  atom.project.getBuffers().map((i) -> i.file.path).indexOf(path) != -1
+
 module.exports = TreeViewBigFiles =
   config:
     filesizeThreshold:
@@ -37,42 +40,42 @@ module.exports = TreeViewBigFiles =
   activate: ->
     atom.packages.activatePackage('tree-view').then (treeViewPkg) =>
       @treeView = treeViewPkg.mainModule.createView()
-      @treeView.originalEntryClicked = @treeView.entryClicked
+      @openSelectedEntryOriginal = @treeView.openSelectedEntry
+      @entryClickedOriginal = @treeView.entryClicked
       @subscriptions = new CompositeDisposable
       @subscriptions.add atom.workspace.observeTextEditors (editor) =>
         @subscriptions.add editor.onDidSave =>
-          entry = @treeView.entryForPath(editor.getPath())
+          entry = @treeView.entryForPath editor.getPath()
           if not entry then return
           setEntrySizeDataAttr entry, ''
           modifiyFilenameSuffix entry, ''
       atom.config.observe 'tree-view-big-files', (value) =>
-        @treeView.filesizeThreshold = value.filesizeThreshold
+        @filesizeThreshold = value.filesizeThreshold
 
-      @treeView.entryClicked = (e) ->
-        entry = e.currentTarget
-        if entry.constructor.name == 'tree-view-directory'
-          return @originalEntryClicked(e)
-        size = getEntrySizeDataAttr entry
-        if size
-          if size < @filesizeThreshold then @originalEntryClicked(e)
+      @treeView.entryClicked = (e) =>
+        if isFileOpened @treeView.selectedPath then return @openSelectedEntryOriginal.call @treeView
+        if getEntrySizeDataAttr(e.currentTarget)||0 >= @filesizeThreshold then return false
+        @entryClickedOriginal.call @treeView, e
+
+      @treeView.openSelectedEntry = (options={}, expandDirectory=false) =>
+        entry = @treeView.selectedEntry()
+        if getEntrySizeDataAttr(entry) or isFileOpened(@treeView.selectedPath)
+          @openSelectedEntryOriginal.call @treeView, options, expandDirectory
         else
           setEntrySizeDataAttr entry, 0
-          fsStat entry.getPath(), (err, stat) =>
+          fsStat @treeView.selectedPath, (err, stat) =>
             setEntrySizeDataAttr entry, stat.size
-            if stat.size < @filesizeThreshold then @originalEntryClicked(e)
-            else addSuffixToFilename entry, getHumanSizeFromBytes(stat.size)
-        false
+            if stat.size < @filesizeThreshold
+              @openSelectedEntryOriginal.call @treeView, options, expandDirectory
+            else
+              addSuffixToFilename entry, getHumanSizeFromBytes(stat.size)
 
-      @treeView.on 'dblclick', '.entry', (e) =>
-        @treeView.openSelectedEntry.call @treeView
+      @treeView.on 'dblclick', '.file.entry', (e) =>
+        @openSelectedEntryOriginal.call @treeView
         false
 
   deactivate: ->
-    @treeView.entryClicked = @treeView.originalEntryClicked
-    delete @treeView.originalEntryClicked
-    delete @treeView.filesizeThreshold
-    @treeView.off 'dblclick', '.entry'
+    @treeView.openSelectedEntry = @openSelectedEntryOriginal
+    @treeView.entryClicked = @entryClickedOriginal
+    @treeView.off 'dblclick', '.file.entry'
     @subscriptions.dispose()
-
-  entryDoubleClicked: (e) ->
-    @originalEntryClicked(e)
