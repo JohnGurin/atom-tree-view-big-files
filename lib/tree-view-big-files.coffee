@@ -27,7 +27,12 @@ modifiyFilenameSuffix = (el, suffix) ->
   if spans.length then spans[0].textContent = suffix
 
 isFileOpened = (path) ->
-  atom.project.getBuffers().map((i) -> i.file.path).indexOf(path) != -1
+  atom.project.getBuffers().reduce( (
+    (acc, i) ->
+      if i.file?.path?
+        acc.push i.file.path
+      acc
+    ), []).indexOf(path) != -1
 
 module.exports = TreeViewBigFiles =
   config:
@@ -53,9 +58,10 @@ module.exports = TreeViewBigFiles =
         @filesizeThreshold = value.filesizeThreshold
 
       @treeView.entryClicked = (e) =>
-        if isFileOpened @treeView.selectedPath then return @openSelectedEntryOriginal.call @treeView
-        if getEntrySizeDataAttr(e.currentTarget) >= @filesizeThreshold then return false
-        @entryClickedOriginal.call @treeView, e
+        if isFileOpened(@treeView.selectedPath) then return @openSelectedEntryOriginal.call @treeView
+        if getEntrySizeDataAttr(e.currentTarget) > @filesizeThreshold then return false
+        @treeView.openSelectedEntry.call @treeView, e
+        false
 
       @treeView.openSelectedEntry = (options={}, expandDirectory=false) =>
         entry = @treeView.selectedEntry()
