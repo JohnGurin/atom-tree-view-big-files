@@ -26,13 +26,42 @@ modifiyFilenameSuffix = (el, suffix) ->
 	spans = el.getElementsByClassName 'tree-view-big-files-size'
 	if spans.length then spans[0].textContent = suffix
 
+isDirectory = (entry) ->
+	entry.getAttribute('is') == 'tree-view-directory'
+
 isFileOpened = (path) ->
-	atom.project.getBuffers().reduce( (
-		(acc, i) ->
-			if i.file?.path?
-				acc.push i.file.path
-			acc
-		), []).indexOf(path) != -1
+	for buf in atom.project.getBuffers()
+		if buf.file?.path == path then return true
+	false
+
+doOriginalAction = (cb, cbArgs) ->
+	cb and cb.apply TreeViewBigFiles.treeView, cbArgs
+	return
+
+doPluginAction = (entry, cb, cbArgs) ->
+	setEntrySizeDataAttr entry, 0
+	fsStat entry.getPath(), (err, stat) =>
+		setEntrySizeDataAttr entry, stat.size
+		if stat.size < TreeViewBigFiles.filesizeThreshold
+			doOriginalAction cb, cbArgs
+		else
+			addSuffixToFilename entry, getHumanSizeFromBytes(stat.size)
+	return
+
+doOriginalOrPluginAction = (entry, cb, cbArgs) ->
+	if isDirectory(entry)
+		doOriginalAction cb, cbArgs
+		return
+	if isFileOpened(entry.getPath())
+		doOriginalAction cb, cbArgs
+		cb = null
+	size = getEntrySizeDataAttr entry
+	if size == 0 then return
+	if size
+		doOriginalAction cb, cbArgs
+	else
+		doPluginAction entry, cb, cbArgs
+	return
 
 module.exports = TreeViewBigFiles =
 	config:
@@ -58,26 +87,15 @@ module.exports = TreeViewBigFiles =
 				@filesizeThreshold = value.filesizeThreshold
 
 			@treeView.entryClicked = (e) =>
-				if isFileOpened(@treeView.selectedPath) then return @openSelectedEntryOriginal.call @treeView
-				if getEntrySizeDataAttr(e.currentTarget) > @filesizeThreshold then return false
-				@treeView.openSelectedEntry.call @treeView, e
+				entry = e.currentTarget
+				doOriginalOrPluginAction entry,
+					TreeViewBigFiles.entryClickedOriginal, [e]
 				false
 
 			@treeView.openSelectedEntry = (options={}, expandDirectory=false) =>
 				entry = @treeView.selectedEntry()
-				if getEntrySizeDataAttr(entry) or isFileOpened(@treeView.selectedPath)
-					@openSelectedEntryOriginal.call @treeView, options, expandDirectory
-				else
-					setEntrySizeDataAttr entry, 0
-					fsStat @treeView.selectedPath, (err, stat) =>
-						setEntrySizeDataAttr entry, stat.size
-						if stat.size < @filesizeThreshold
-							@openSelectedEntryOriginal.call @treeView, options, expandDirectory
-						else
-							addSuffixToFilename entry, getHumanSizeFromBytes(stat.size)
-
-			@treeView.on 'dblclick', '.file.entry', (e) =>
-				@openSelectedEntryOriginal.call @treeView
+				doOriginalOrPluginAction entry,
+					TreeViewBigFiles.openSelectedEntryOriginal,	[options, expandDirectory]
 				false
 
 	deactivate: ->

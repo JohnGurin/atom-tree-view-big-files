@@ -7,5 +7,6 @@ Opens a file
 Appends file name with file size for big files
 
 `v0.2` keyboard functionality: first `enter` checks file size
+`v0.3` first click opens tabs in preview mode
 
 The package based on https://github.com/h2so5/atom-chary-tree-view
