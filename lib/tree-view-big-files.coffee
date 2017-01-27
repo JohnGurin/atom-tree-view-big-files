@@ -15,7 +15,7 @@ setEntrySizeDataAttr = (el, bytes) ->
 addSuffixToFilename = (el, suffix) ->
 	spans = el.getElementsByClassName 'tree-view-big-files-size'
 	if not spans.length
-		span = document.createElement('span');
+		span = document.createElement 'span'
 		span.className = 'tree-view-big-files-size'
 		span.textContent	= suffix
 		el.appendChild span
@@ -39,28 +39,49 @@ doOriginalAction = (cb, cbArgs) ->
 	return
 
 doPluginAction = (entry, cb, cbArgs) ->
-	setEntrySizeDataAttr entry, 0
-	fsStat entry.getPath(), (err, stat) =>
-		setEntrySizeDataAttr entry, stat.size
-		if stat.size < TreeViewBigFiles.filesizeThreshold
-			doOriginalAction cb, cbArgs
-		else
-			addSuffixToFilename entry, getHumanSizeFromBytes(stat.size)
+	setEntrySizeDataAttr entry, '-'
+	addSuffixToFilename entry, ' •'
+	fsStat entry.getPath(), (err, stat) ->
+		setTimeout(( ()->
+			setEntrySizeDataAttr entry, stat.size
+			if stat.size < TreeViewBigFiles.filesizeThreshold
+				doOriginalAction cb, cbArgs
+				addSuffixToFilename entry, ''
+			else
+				addSuffixToFilename entry, getHumanSizeFromBytes(stat.size)
+		),0)
 	return
 
-doOriginalOrPluginAction = (entry, cb, cbArgs) ->
+doOriginalOrPluginAction = (entry, cb, cbArgs, size) ->
 	if isDirectory(entry)
 		doOriginalAction cb, cbArgs
 		return
 	if isFileOpened(entry.getPath())
 		doOriginalAction cb, cbArgs
 		cb = null
-	size = getEntrySizeDataAttr entry
-	if size == 0 then return
+	size = size or getEntrySizeDataAttr(entry)
+	if size == '-' then return
 	if size
 		doOriginalAction cb, cbArgs
 	else
 		doPluginAction entry, cb, cbArgs
+	return
+
+clickHandlerFactory = (isDoubleClickNeeded) ->
+	if isDoubleClickNeeded
+		return (e) ->
+			size = getEntrySizeDataAttr e.currentTarget
+			if size >= TreeViewBigFiles.filesizeThreshold
+				return false
+			doOriginalOrPluginAction e.currentTarget,
+				TreeViewBigFiles.entryClickedOriginal, [e],
+				size
+			false
+	else
+		return (e) ->
+			doOriginalOrPluginAction e.currentTarget,
+				TreeViewBigFiles.entryClickedOriginal, [e]
+			false
 	return
 
 module.exports = TreeViewBigFiles =
@@ -86,16 +107,19 @@ module.exports = TreeViewBigFiles =
 			atom.config.observe 'tree-view-big-files', (value) =>
 				@filesizeThreshold = value.filesizeThreshold
 
-			@treeView.entryClicked = (e) =>
-				entry = e.currentTarget
-				doOriginalOrPluginAction entry,
-					TreeViewBigFiles.entryClickedOriginal, [e]
+			@treeView.entryClicked = clickHandlerFactory(true)
+
+			@treeView.openSelectedEntry = (options={}, expandDirectory = false) =>
+				doOriginalOrPluginAction @treeView.selectedEntry(),
+					TreeViewBigFiles.openSelectedEntryOriginal,	[options, expandDirectory]
 				false
 
-			@treeView.openSelectedEntry = (options={}, expandDirectory=false) =>
-				entry = @treeView.selectedEntry()
-				doOriginalOrPluginAction entry,
-					TreeViewBigFiles.openSelectedEntryOriginal,	[options, expandDirectory]
+			@treeView.on 'dblclick', '.file.entry', (e) ->
+				if not isFileOpened(e.currentTarget.getPath())
+					e.type = 'click'
+					e.originalEvent = null
+				doOriginalOrPluginAction e.currentTarget,
+					TreeViewBigFiles.entryClickedOriginal, [e]
 				false
 
 	deactivate: ->
